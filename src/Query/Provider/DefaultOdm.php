@@ -2,16 +2,13 @@
 
 namespace ZF\Doctrine\QueryBuilder\Query\Provider;
 
-use ZF\Apigility\Doctrine\Server\Query\Provider\QueryProviderInterface;
-use ZF\Apigility\Doctrine\Server\Paginator\Adapter\DoctrineOdmAdapter;
-use DoctrineModule\Persistence\ObjectManagerAwareInterface;
-use Doctrine\Common\Persistence\ObjectManager;
-use Zend\ServiceManager\AbstractPluginManager;
+use ZF\Apigility\Doctrine\Server\Query\Provider\DefaultOdm as ZFApigilityDefaultOdm;
 use Zend\ServiceManager\ServiceLocatorAwareInterface;
-use Zend\ServiceManger\ServiceLocatorInterface;
+use Zend\ServiceManager\ServiceLocatorInterface;
+use ZF\ApiProblem\ApiProblem;
 use ZF\Rest\ResourceEvent;
 
-class DefaultOdm implements QueryProviderInterface, ServiceLocatorAwareInterface
+class DefaultOdm extends ZFApigilityDefaultOdm implements ServiceLocatorAwareInterface
 {
     /**
      * @var ServiceLocatorInterface
@@ -42,43 +39,24 @@ class DefaultOdm implements QueryProviderInterface, ServiceLocatorAwareInterface
     }
 
     /**
-     * @var ObjectManager
-     */
-    protected $objectManager;
-
-    /**
-     * Set the object manager
-     *
-     * @param ObjectManager $objectManager
-     */
-    public function setObjectManager(ObjectManager $objectManager)
-    {
-        $this->objectManager = $objectManager;
-    }
-
-    /**
-     * Get the object manager
-     *
-     * @return ObjectManager
-     */
-    public function getObjectManager()
-    {
-        return $this->objectManager;
-    }
-
-    /**
      * {@inheritDoc}
      */
     public function createQuery(ResourceEvent $event, $entityClass, $parameters)
     {
-        $request = $this->getServiceManager()->get('Application')->getRequest()->getQuery()->toArray();
+        $queryBuilder = parent::createQuery($event, $entityClass, $parameters);
+        if ($queryBuilder instanceof ApiProblem) {
+            return $queryBuilder;
+        }
 
-        $queryBuilder = $this->getObjectManager()->createQueryBuilder();
-        $queryBuilder->find($entityClass);
+        $request = $event->getRequest()->getQuery()->toArray();
 
         if (isset($request['filter'])) {
             $metadata = $this->getObjectManager()->getMetadataFactory()->getAllMetadata();
-            $filterManager = $this->getServiceLocator()->get('ZfDoctrineQueryBuilderFilterManagerOrm');
+            $filterManager = $this->
+                getServiceLocator()->
+                getServiceLocator()->
+                get('ZfDoctrineQueryBuilderFilterManagerOrm');
+
             $filterManager->filter(
                 $queryBuilder,
                 $metadata[0],
@@ -88,7 +66,11 @@ class DefaultOdm implements QueryProviderInterface, ServiceLocatorAwareInterface
 
         if (isset($request['order-by'])) {
             $metadata = $this->getObjectManager()->getMetadataFactory()->getAllMetadata();
-            $orderByManager = $this->getServiceLocator()->get('ZfDoctrineQueryBuilderOrderByManagerOrm');
+            $orderByManager = $this->
+                getServiceLocator()->
+                getServiceLocator()->
+                get('ZfDoctrineQueryBuilderOrderByManagerOrm');
+
             $orderByManager->orderBy(
                 $queryBuilder,
                 $metadata[0],
@@ -97,31 +79,5 @@ class DefaultOdm implements QueryProviderInterface, ServiceLocatorAwareInterface
         }
 
         return $queryBuilder;
-    }
-
-    /**
-     * @param   $queryBuilder
-     *
-     * @return DoctrineOdmAdapter
-     */
-    public function getPaginatedQuery($queryBuilder)
-    {
-        $adapter = new DoctrineOdmAdapter($queryBuilder);
-
-        return $adapter;
-    }
-
-    /**
-     * @param   $entityClass
-     *
-     * @return int
-     */
-    public function getCollectionTotal($entityClass)
-    {
-        $queryBuilder = $this->getObjectManager()->createQueryBuilder();
-        $queryBuilder->find($entityClass);
-        $count = $queryBuilder->getQuery()->execute()->count();
-
-        return $count;
     }
 }
